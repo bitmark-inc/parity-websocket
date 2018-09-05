@@ -85,6 +85,15 @@ func (s *SubscriptionMap) Get(id string) (chan json.RawMessage, bool) {
 	return ch, ok
 }
 
+func (s *SubscriptionMap) CloseAll() {
+	s.Lock()
+	defer s.Unlock()
+	for k, ch := range s.m {
+		close(ch)
+		delete(s.m, k)
+	}
+}
+
 type ParityWebsocketClient struct {
 	sync.Mutex
 	wsUri         string
@@ -110,6 +119,8 @@ func (pwc *ParityWebsocketClient) call(params ParityRequestParams) (json.RawMess
 	}
 
 	ch := make(chan json.RawMessage)
+	defer close(ch)
+
 	pwc.rpcResponses.Add(params.Id, ch)
 	defer pwc.rpcResponses.Delete(params.Id)
 
@@ -120,11 +131,12 @@ func (pwc *ParityWebsocketClient) call(params ParityRequestParams) (json.RawMess
 	}
 	pwc.Unlock()
 
-	// TODO: add error handling when a socket is disconnected
-	result := <-ch
-	close(ch)
-
-	return result, nil
+	select {
+	case <-time.After(10 * time.Second):
+		return nil, fmt.Errorf("rpc call timeout")
+	case result := <-ch:
+		return result, nil
+	}
 }
 
 func (pwc *ParityWebsocketClient) run() {
@@ -147,6 +159,8 @@ CONNECTION_LOOP:
 				if websocket.IsUnexpectedCloseError(err) || websocket.IsCloseError(err) {
 					pwc.log.WithError(err).Infoln("parity server connection is terminated")
 					pwc.connected = false
+					pwc.log.Debug("close all existing subscription channels")
+					pwc.subscriptions.CloseAll()
 					time.Sleep(WSReadColdDownTime)
 					break MESSAGE_READ_LOOP
 				} else {
