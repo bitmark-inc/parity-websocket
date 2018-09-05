@@ -101,6 +101,7 @@ type ParityWebsocketClient struct {
 	log           *logrus.Entry
 	rpcResponses  RPCResponseMap
 	subscriptions SubscriptionMap
+	running       bool
 	connected     bool
 }
 
@@ -239,8 +240,13 @@ func (pwc *ParityWebsocketClient) connect() error {
 	return nil
 }
 
-func (pwc *ParityWebsocketClient) Run() {
+func (pwc *ParityWebsocketClient) Run() error {
+	if pwc.running {
+		return fmt.Errorf("could not run for multiple times")
+	}
+	pwc.running = true
 	go pwc.run()
+	return nil
 }
 
 func NewParityWebsocketClient(wsUri string) *ParityWebsocketClient {
