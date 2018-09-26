@@ -101,12 +101,11 @@ type ParityWebsocketClient struct {
 	log           *logrus.Entry
 	rpcResponses  RPCResponseMap
 	subscriptions SubscriptionMap
-	running       bool
+	started       bool
 	connected     bool
 }
 
 func (pwc *ParityWebsocketClient) call(params ParityRequestParams) (json.RawMessage, error) {
-
 	params.JSONRPC = "2.0"
 	params.Id = rand.Uint64()
 
@@ -240,11 +239,11 @@ func (pwc *ParityWebsocketClient) connect() error {
 	return nil
 }
 
-func (pwc *ParityWebsocketClient) Run() error {
-	if pwc.running {
+func (pwc *ParityWebsocketClient) Start() error {
+	if pwc.started {
 		return fmt.Errorf("could not run for multiple times")
 	}
-	pwc.running = true
+	pwc.started = true
 	go pwc.run()
 	return nil
 }
